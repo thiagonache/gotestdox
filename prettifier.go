@@ -110,13 +110,19 @@ func (p *prettifier) peek() rune {
 	return next
 }
 
-func (p *prettifier) inInitialism() bool {
-	for _, r := range p.input[p.start:p.pos] {
-		if unicode.IsLower(r) && r != 's' {
+func (p *prettifier) isInitialism() bool {
+	// calulate end to avoid end index to be
+	// bigger than start
+	end := p.pos - 1
+	if end < p.start {
+		end = p.start
+	}
+	for _, r := range p.input[p.start:end] {
+		if unicode.IsLower(r) {
 			return false
 		}
 	}
-	return true
+	return unicode.IsUpper(p.input[end]) || unicode.IsDigit(p.input[end]) || p.input[end] == 's'
 }
 
 func (p *prettifier) emit() {
@@ -125,10 +131,13 @@ func (p *prettifier) emit() {
 	case len(p.words) == 0:
 		// This is the first word
 		word = cases.Title(language.Und, cases.NoLower).String(word)
-	case len(word) == 1:
-		// Single letter word such as A
+	case len(word) < 3:
+		// Single or double letters words such as A or Is except by OK
+		if word == "OK" {
+			break
+		}
 		word = cases.Lower(language.Und).String(word)
-	case p.inInitialism():
+	case p.isInitialism():
 		// leave capitalisation as is
 	default:
 		word = cases.Lower(language.Und).String(word)
@@ -198,19 +207,6 @@ func inWord(p *prettifier) stateFunc {
 			p.emit()
 			p.inSubTest = true
 			return betweenWords
-		case unicode.IsUpper(r):
-			if p.prev() == '-' {
-				// inside hyphenated word
-				p.next()
-				continue
-			}
-			if p.inInitialism() {
-				// keep going
-				p.next()
-				continue
-			}
-			p.emit()
-			return betweenWords
 		case unicode.IsDigit(r):
 			if unicode.IsDigit(p.prev()) {
 				// in a multi-digit number
@@ -227,36 +223,39 @@ func inWord(p *prettifier) stateFunc {
 				p.next()
 				continue
 			}
-			if p.inInitialism() {
+			if p.isInitialism() {
 				// keep going
 				p.next()
 				continue
 			}
 			p.emit()
+			return betweenWords
+		case unicode.IsUpper(r):
+			// calculate next to prevent out of bounds
+			// when word ends in initalism
+			next := p.pos + 1
+			if next > len(p.input)-1 {
+				next = len(p.input) - 1
+			}
+			// inInitialism
+			if unicode.IsUpper(p.input[p.pos-1]) && unicode.IsUpper(p.input[next]) {
+				p.next()
+				continue
+			}
+			// inInitialism with digit
+			if unicode.IsUpper(p.input[p.pos-1]) && unicode.IsDigit(p.input[next]) {
+				p.next()
+				continue
+			}
+			// inInitialism plural
+			if unicode.IsUpper(p.input[p.pos-1]) && p.input[next] == 's' {
+				p.next()
+				continue
+			}
+			p.emit()
+			return betweenWords
 		default:
-			if p.pos-p.start <= 1 {
-				// word too short
-				p.next()
-				continue
-			}
-			if p.input[p.start] == '\'' {
-				// inside a quoted word
-				p.next()
-				continue
-			}
-			if !p.inInitialism() {
-				// keep going
-				p.next()
-				continue
-			}
-			if p.inInitialism() && r == 's' {
-				p.next()
-				p.emit()
-				return betweenWords
-			}
-			// start a new word
-			p.backup()
-			p.emit()
+			p.next()
 		}
 	}
 }
