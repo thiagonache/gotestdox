@@ -96,10 +96,19 @@ func (p *prettifier) prev() rune {
 	return p.input[p.pos-1]
 }
 
-func (p *prettifier) next() rune {
+func (p *prettifier) walk() rune {
 	next := p.peek()
 	p.pos++
 	return next
+}
+
+func (p *prettifier) next() rune {
+	// calculate next to prevent out of bounds
+	// when word ends with capitalisation
+	if p.pos+1 >= len(p.input) {
+		return p.input[p.pos]
+	}
+	return p.input[p.pos+1]
 }
 
 func (p *prettifier) peek() rune {
@@ -126,22 +135,16 @@ func (p *prettifier) isInitialism() bool {
 }
 
 func (p *prettifier) inInitialism() bool {
-	// calculate next to prevent out of bounds
-	// when word ends with capitalisation
-	next := p.pos + 1
-	if next > len(p.input)-1 {
-		next = len(p.input) - 1
-	}
 	// capitalisation
-	if unicode.IsUpper(p.input[p.pos-1]) && unicode.IsUpper(p.input[next]) {
+	if unicode.IsUpper(p.prev()) && unicode.IsUpper(p.next()) {
 		return true
 	}
 	// capitalisation with digit
-	if unicode.IsUpper(p.input[p.pos-1]) && unicode.IsDigit(p.input[next]) {
+	if unicode.IsUpper(p.prev()) && unicode.IsDigit(p.next()) {
 		return true
 	}
 	// capitalisation ending in plural
-	if unicode.IsUpper(p.input[p.pos-1]) && p.input[next] == 's' {
+	if unicode.IsUpper(p.prev()) && p.next() == 's' {
 		return true
 	}
 	return false
@@ -200,7 +203,7 @@ type stateFunc func(p *prettifier) stateFunc
 func betweenWords(p *prettifier) stateFunc {
 	for {
 		p.logState("betweenWords")
-		switch p.next() {
+		switch p.walk() {
 		case eof:
 			return nil
 		case '_', '/':
@@ -232,34 +235,34 @@ func inWord(p *prettifier) stateFunc {
 		case unicode.IsDigit(r):
 			if unicode.IsDigit(p.prev()) {
 				// in a multi-digit number
-				p.next()
+				p.walk()
 				continue
 			}
 			if p.prev() == '-' {
 				// in a negative number
-				p.next()
+				p.walk()
 				continue
 			}
 			if p.prev() == '=' {
 				// in some phrase like 'n=3'
-				p.next()
+				p.walk()
 				continue
 			}
 			if p.inInitialism() {
-				p.next()
+				p.walk()
 				continue
 			}
 			p.emit()
 			return betweenWords
 		case unicode.IsUpper(r):
 			if p.inInitialism() {
-				p.next()
+				p.walk()
 				continue
 			}
 			p.emit()
 			return betweenWords
 		default:
-			p.next()
+			p.walk()
 		}
 	}
 }
