@@ -111,8 +111,8 @@ func (p *prettifier) peek() rune {
 }
 
 func (p *prettifier) isInitialism() bool {
-	// calulate end to avoid end index to be
-	// bigger than start
+	// calulate end to avoid last index to be
+	// bigger than first index
 	end := p.pos - 1
 	if end < p.start {
 		end = p.start
@@ -125,14 +125,36 @@ func (p *prettifier) isInitialism() bool {
 	return unicode.IsUpper(p.input[end]) || unicode.IsDigit(p.input[end]) || p.input[end] == 's'
 }
 
+func (p *prettifier) inInitialism() bool {
+	// calculate next to prevent out of bounds
+	// when word ends with capitalisation
+	next := p.pos + 1
+	if next > len(p.input)-1 {
+		next = len(p.input) - 1
+	}
+	// capitalisation
+	if unicode.IsUpper(p.input[p.pos-1]) && unicode.IsUpper(p.input[next]) {
+		return true
+	}
+	// capitalisation with digit
+	if unicode.IsUpper(p.input[p.pos-1]) && unicode.IsDigit(p.input[next]) {
+		return true
+	}
+	// capitalisation ending in plural
+	if unicode.IsUpper(p.input[p.pos-1]) && p.input[next] == 's' {
+		return true
+	}
+	return false
+}
+
 func (p *prettifier) emit() {
 	word := string(p.input[p.start:p.pos])
 	switch {
 	case len(p.words) == 0:
-		// This is the first word
+		// this is the first word
 		word = cases.Title(language.Und, cases.NoLower).String(word)
 	case len(word) < 3:
-		// Single or double letters words such as A or Is except by OK
+		// single and double letter word such as A or Is but not OK
 		if word == "OK" {
 			break
 		}
@@ -223,32 +245,14 @@ func inWord(p *prettifier) stateFunc {
 				p.next()
 				continue
 			}
-			if p.isInitialism() {
-				// keep going
+			if p.inInitialism() {
 				p.next()
 				continue
 			}
 			p.emit()
 			return betweenWords
 		case unicode.IsUpper(r):
-			// calculate next to prevent out of bounds
-			// when word ends in initalism
-			next := p.pos + 1
-			if next > len(p.input)-1 {
-				next = len(p.input) - 1
-			}
-			// inInitialism
-			if unicode.IsUpper(p.input[p.pos-1]) && unicode.IsUpper(p.input[next]) {
-				p.next()
-				continue
-			}
-			// inInitialism with digit
-			if unicode.IsUpper(p.input[p.pos-1]) && unicode.IsDigit(p.input[next]) {
-				p.next()
-				continue
-			}
-			// inInitialism plural
-			if unicode.IsUpper(p.input[p.pos-1]) && p.input[next] == 's' {
+			if p.inInitialism() {
 				p.next()
 				continue
 			}
