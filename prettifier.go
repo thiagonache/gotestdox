@@ -84,10 +84,6 @@ type prettifier struct {
 	seenUnderscore bool
 }
 
-func (p *prettifier) backup() {
-	p.pos--
-}
-
 func (p *prettifier) skip() {
 	p.start = p.pos
 }
