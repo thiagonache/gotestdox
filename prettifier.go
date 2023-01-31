@@ -259,6 +259,14 @@ func inWord(p *prettifier) stateFunc {
 				p.walk()
 				continue
 			}
+			if p.prev() == '\'' {
+				p.walk()
+				continue
+			}
+			if p.prev() == '-' {
+				p.walk()
+				continue
+			}
 			p.emit()
 			return betweenWords
 		default:
