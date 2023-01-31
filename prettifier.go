@@ -139,6 +139,10 @@ func (p *prettifier) inInitialism() bool {
 	if unicode.IsUpper(p.prev()) && unicode.IsDigit(p.next()) {
 		return true
 	}
+	// capitalisation with digit
+	if unicode.IsDigit(p.prev()) && unicode.IsUpper(p.next()) {
+		return true
+	}
 	// capitalisation ending in plural
 	if unicode.IsUpper(p.prev()) && p.next() == 's' {
 		return true
